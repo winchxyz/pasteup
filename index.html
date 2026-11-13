@@ -8,6 +8,17 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#1b1b1d">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Pasteup">
+  <meta property="og:description" content="Lay out pictures for X before you post them.">
+  <meta property="og:url" content="https://winchxyz.github.io/pasteup/">
+  <meta property="og:image" content="https://winchxyz.github.io/pasteup/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -15,8 +26,10 @@
   <div id="window" class="window">
     <nav class="rail" aria-label="Sections">
       <a class="mark" href="./" aria-label="Pasteup">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 1.5v21M1.5 12h21" stroke="currentColor" stroke-width="1.8"/></svg>
+        <!-- a P pasted up from four pieces, with the gap the feed leaves between pictures -->
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="5" height="20"/><rect x="9" y="2" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/><path d="M16 2a6 6 0 0 1 0 12Z"/></svg>
       </a>
+      <span class="mark-name" aria-hidden="true">Pasteup</span>
       <div id="modes" class="rail-nav"></div>
       <div id="rail-foot" class="rail-foot"></div>
     </nav>

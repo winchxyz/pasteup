@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="logo-dark.svg">
+  <img src="logo.svg" alt="Pasteup" height="56">
+</picture>
+
 # Pasteup
 
 Lay out pictures for X before you post them.

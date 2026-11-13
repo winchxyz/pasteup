@@ -99,7 +99,20 @@ button { cursor: pointer; }
 /* ---------- rail ---------- */
 
 .rail { flex: none; display: flex; flex-direction: column; align-items: center; width: 74px; padding: 18px 0 16px; border-right: 1px solid var(--line); }
-.mark { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 13px; background: rgba(0, 0, 0, 0.42); color: #fff; }
+.mark { flex: none; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 13px; background: rgba(0, 0, 0, 0.42); color: #fff; }
+/* the pieces of the mark slide into place once, and ease apart under the pointer */
+.mark svg > * { animation: paste 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: translate 0.25s ease; }
+.mark svg > :nth-child(1) { --from: -5px 0; }
+.mark svg > :nth-child(2) { --from: 0 -5px; animation-delay: 0.08s; }
+.mark svg > :nth-child(3) { --from: 0 5px; animation-delay: 0.16s; }
+.mark svg > :nth-child(4) { --from: 5px 0; animation-delay: 0.24s; }
+@keyframes paste { from { opacity: 0; translate: var(--from); } }
+.mark:hover svg > :nth-child(1) { translate: -1px 0; }
+.mark:hover svg > :nth-child(2) { translate: 0 -1px; }
+.mark:hover svg > :nth-child(3) { translate: 0 1px; }
+.mark:hover svg > :nth-child(4) { translate: 1px 0; }
+/* the name sits next to the mark only where the rail lies flat */
+.mark-name { display: none; margin-left: 11px; font: 600 17px "Inter", var(--text); letter-spacing: -0.018em; color: #fff; }
 .rail-nav { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
 .rail-foot { margin-top: auto; }
 .rail-btn { position: relative; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 13px; background: none; color: var(--faint); transition: color 0.15s, background 0.15s; }
@@ -471,6 +484,7 @@ button { cursor: pointer; }
   body { overflow: auto; }
   .window { position: relative; inset: auto; flex-direction: column; min-height: 100vh; }
   .rail { flex-direction: row; width: auto; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .mark-name { display: block; }
   .rail-nav { flex-direction: row; margin: 0 0 0 12px; padding: 0 0 0 12px; border-top: 0; border-left: 1px solid var(--line); }
   .rail-foot { margin: 0 0 0 auto; }
   .top { padding: 14px 16px 12px; }
