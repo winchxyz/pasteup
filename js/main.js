@@ -1,6 +1,6 @@
 import { h, icon, drag } from './dom.js';
 import { postLayout, GAP } from './layout.js';
-import { clamp, loadPic, newCrop, cropRect, panCrop, artRects, showRect, rectToBlob, savedSize, saveBlob, nextId } from './pics.js';
+import { clamp, loadPic, newCrop, cropRect, panCrop, spread, artRects, showRect, rectToBlob, savedSize, saveBlob, nextId } from './pics.js';
 import { column, viewer, contentWidth, innerWidth, frame, DEVICES } from './preview.js';
 import { FORMATS, formatOf, ratioLabel, variants, fullHeightSum } from './variants.js';
 import { sizeSheet } from './sizes.js';
@@ -19,8 +19,9 @@ const state = {
   focus: false,   // side panels put away
   profile: { name: '', handle: '', bio: '', shape: 'circle', avatar: null, banner: null },
   // a post is a row of places; each has a shape and, once filled, its own picture.
-  // `art` is one picture spread over all of them instead.
-  post: { text: '', slots: [], art: null, variant: 'strips', gallery: true, save: { size: 'format', type: 'png' } },
+  // `arts` are pictures spread over the whole row instead: every one runs across all the
+  // places, and each place names the picture it shows (`from`) and the part of it (`part`).
+  post: { text: '', slots: [], arts: [], seamless: true, variant: 'strips', gallery: true, save: { size: 'format', type: 'png' } },
   selected: null,
   lifted: null,   // the place being carried to a new spot in the preview
 };
@@ -78,20 +79,38 @@ function remember() {
 
 // ---------- the post ----------
 
-const newSlot = (ratio) => ({ id: nextId(), pic: null, crop: newCrop(ratio), size: null });
+// from: the spread picture a place shows; part: the place whose stretch of it is shown, null for its own
+const newSlot = (ratio) => ({ id: nextId(), pic: null, crop: newCrop(ratio), size: null, from: null, part: null });
 const slotRatio = (slot) => slot.crop.ratio || (slot.pic ? slot.pic.w / slot.pic.h : 1);
 const total = (list) => list.reduce((a, b) => a + b, 0);
+const artOf = (slot) => state.post.arts.find((art) => art.id === slot.from) || state.post.arts[0] || null;
+const partOf = (slot, i) => (slot.part != null && slot.part !== i && slot.part < state.post.slots.length ? slot.part : null);
+// pictures go by letters, places by numbers
+const letter = (i) => (i < 26 ? '' : String.fromCharCode(64 + Math.floor(i / 26))) + String.fromCharCode(65 + (i % 26));
 
-// The row X builds from the places, and the part of a picture each one shows.
+// How the spread pictures lie on the row: tile widths, and whether they carry on behind the gaps.
+function lie(layout) {
+  return { widths: layout.items.map((item) => item.width), seamless: state.post.seamless && layout.kind === 'row', parts: state.post.slots.map(partOf) };
+}
+
+// The row X builds from the places, and the picture and the part of it each one shows.
 function resolve(width) {
-  const { slots, art } = state.post;
-  if (!slots.length) return { layout: null, rects: [], ratios: [] };
+  const { slots, arts } = state.post;
+  if (!slots.length) return { layout: null, rects: [], ratios: [], pics: [] };
   const ratios = slots.map(slotRatio);
   const layout = postLayout(ratios, width);
-  const rects = art
-    ? artRects(art, layout.items.map((item) => item.width), layout.height, art.seamless && layout.kind === 'row')
-    : slots.map((slot) => (slot.pic ? cropRect(slot.pic, slot.crop) : null));
-  return { layout, rects, ratios };
+  if (!arts.length) return { layout, ratios, pics: slots.map((slot) => slot.pic), rects: slots.map((slot) => (slot.pic ? cropRect(slot.pic, slot.crop) : null)) };
+  const { widths, seamless, parts } = lie(layout);
+  const cut = new Map();
+  const pics = [];
+  const rects = [];
+  slots.forEach((slot, i) => {
+    const art = artOf(slot);
+    if (!cut.has(art)) cut.set(art, artRects(art, widths, layout.height, seamless, parts));
+    pics.push(art.pic);
+    rects.push(cut.get(art)[i]);
+  });
+  return { layout, rects, ratios, pics };
 }
 
 function faceView(face) {
@@ -99,14 +118,14 @@ function faceView(face) {
 }
 
 function viewFor(device) {
-  const { layout, rects, ratios } = resolve(contentWidth(device));
-  const { slots, art } = state.post;
+  const { layout, rects, ratios, pics } = resolve(contentWidth(device));
+  const { slots } = state.post;
   return {
     profile: state.profile,
     avatar: faceView(state.profile.avatar),
     banner: faceView(state.profile.banner),
     text: state.post.text,
-    media: slots.map((slot, i) => ({ id: slot.id, pic: art ? art.pic : slot.pic, rect: rects[i], number: i + 1, label: ratioLabel(ratios[i]) })),
+    media: slots.map((slot, i) => ({ id: slot.id, pic: pics[i], rect: rects[i], number: i + 1, label: ratioLabel(ratios[i]) })),
     layout,
     ratios,
   };
@@ -189,7 +208,6 @@ async function addPictures(files, into = null) {
   const pics = await readFiles(files);
   if (!pics.length) return;
   const { slots } = state.post;
-  if (state.post.art) { state.post.art = null; toast('The picture across the row was taken off.'); }
   let left = 0;
   for (const pic of pics) {
     const slot = into || slots.find((one) => !one.pic);
@@ -206,12 +224,75 @@ async function addPictures(files, into = null) {
   render();
 }
 
-async function setArt(files) {
-  const [pic] = await readFiles(files);
-  if (!pic) return;
-  state.post.art = { pic, crop: newCrop(), seamless: true };
+// ---------- pictures spread across the row ----------
+
+const newArt = (pic) => ({ id: nextId(), pic, crop: newCrop() });
+
+// More pictures to run across the row. The first ones take turns along the places;
+// later ones wait in the list, and the first of them goes into the chosen place.
+async function addArts(files, into = null) {
+  const pics = await readFiles(files);
+  if (!pics.length) return;
+  const { slots, arts } = state.post;
+  const made = pics.map(newArt);
+  const first = !arts.length;
+  arts.push(...made);
+  if (first) {
+    slots.forEach((slot, i) => { slot.from = made[i % made.length].id; slot.part = null; });
+  } else {
+    const place = into || selectedSlot() || slots[0];
+    place.from = made[0].id;
+    state.selected = place.id;
+    if (made.length > 1) toast(`${made.length} pictures added. Click a cell to put one in a place.`);
+  }
   render();
 }
+
+// Run the pictures already in the places across the whole row; with none loaded, ask for some.
+function spreadLoaded() {
+  const { slots } = state.post;
+  const made = new Map();
+  for (const slot of slots) if (slot.pic && !made.has(slot.pic)) made.set(slot.pic, newArt(slot.pic));
+  if (!made.size) { choose(true, (files) => addArts(files)); return; }
+  const list = [...made.values()];
+  state.post.arts = list;
+  slots.forEach((slot, i) => { slot.from = (slot.pic ? made.get(slot.pic) : list[i % list.length]).id; slot.part = null; });
+  render();
+}
+
+function endSpread() {
+  state.post.arts = [];
+  for (const slot of state.post.slots) { slot.from = null; slot.part = null; }
+  render();
+}
+
+function removeArt(art) {
+  const { slots, arts } = state.post;
+  if (arts.length < 2) { endSpread(); return; }
+  arts.splice(arts.indexOf(art), 1);
+  for (const slot of slots) if (slot.from === art.id) slot.from = null;
+  render();
+}
+
+// Hand the pictures out along the row: taking turns, or each one a run of neighbours.
+function arrange(how) {
+  const { slots, arts } = state.post;
+  slots.forEach((slot, i) => {
+    slot.from = arts[how === 'blocks' ? Math.min(arts.length - 1, Math.floor((i * arts.length) / slots.length)) : i % arts.length].id;
+    slot.part = null;
+  });
+  render();
+}
+
+function setPart(slot, part) {
+  const { slots } = state.post;
+  const at = slots.indexOf(slot);
+  const to = clamp(part, 0, slots.length - 1);
+  slot.part = to === at ? null : to;
+  render();
+}
+
+const addAny = (files, into = null) => (state.post.arts.length ? addArts(files, into) : addPictures(files, into));
 
 function addSlot() {
   const { slots } = state.post;
@@ -334,7 +415,8 @@ function zoomSlider(id, crop, onInput) {
 
 // A frame you drag the picture around in. Returns the element and a way to redraw it.
 // trim() tells how much of each side the feed cuts off, as shares of the frame: { side, cap }.
-function cropbox({ pic, crop, height = 220, mask = '', onChange, drop, trim = null, over = null }) {
+// tap(x) hears a click that was not a drag, with where it landed as a share of the width.
+function cropbox({ pic, crop, height = 220, mask = '', onChange, drop, trim = null, over = null, tap = null }) {
   const img = h('img', { src: pic.url, alt: '', draggable: false });
   const dims = trim ? ['is-left', 'is-right', 'is-top', 'is-bottom'].map((name) => h('i', { class: `trim ${name}` })) : [];
   const box = h('div', { class: `cropbox ${mask}`, 'data-drop': drop || null }, img, dims, over);
@@ -350,15 +432,23 @@ function cropbox({ pic, crop, height = 220, mask = '', onChange, drop, trim = nu
     }
   };
   let last = [0, 0];
+  let far = 0;
   drag(box, {
     cursor: 'grabbing',
-    start: (event) => { if (event.target.closest('.cut')) return false; last = [0, 0]; return true; },
+    start: (event) => { if (event.target.closest('.cut')) return false; last = [0, 0]; far = 0; return true; },
     move: (dx, dy) => {
+      far = Math.max(far, Math.hypot(dx, dy));
+      if (tap && far < 4) return;
       const size = box.getBoundingClientRect();
       panCrop(pic, crop, (dx - last[0]) / size.width, (dy - last[1]) / size.height);
       last = [dx, dy];
       redraw();
       onChange();
+    },
+    end: (event) => {
+      if (!tap || far >= 4) return;
+      const size = box.getBoundingClientRect();
+      tap(clamp((event.clientX - size.left) / size.width, 0, 1));
     },
   });
   redraw();
@@ -406,7 +496,7 @@ function gallery() {
 }
 
 function tray() {
-  const { slots, art } = state.post;
+  const { slots, arts } = state.post;
   const view = viewFor(state.device);
   let dragged = null;
   const thumbs = slots.map((slot, i) => {
@@ -414,7 +504,7 @@ function tray() {
     const shape = view.layout.items[i].aspect;
     return h('button', {
       type: 'button', class: `thumb ${slot.id === state.selected ? 'is-on' : ''}`,
-      style: { width: `${clamp(Math.round(52 * shape), 12, 96)}px` }, draggable: !art, 'aria-label': `Picture ${i + 1}`, 'aria-pressed': String(slot.id === state.selected),
+      style: { width: `${clamp(Math.round(52 * shape), 12, 96)}px` }, draggable: true, 'aria-label': `Picture ${i + 1}`, 'aria-pressed': String(slot.id === state.selected),
       onclick: () => { state.selected = slot.id; render(); },
       ondragstart: (event) => { dragged = slot; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(slot.id)); },
       ondragover: (event) => { if (dragged && dragged !== slot) event.preventDefault(); },
@@ -428,7 +518,8 @@ function tray() {
         state.post.variant = null;
         render();
       },
-    }, entry.pic ? frame(entry.pic, entry.rect, '', shape) : h('span', { class: 'frame is-empty' }), h('i', null, String(i + 1)));
+    }, entry.pic ? frame(entry.pic, entry.rect, '', shape) : h('span', { class: 'frame is-empty' }),
+    h('i', null, String(i + 1) + (arts.length > 1 ? letter(arts.indexOf(artOf(slot))) : '')));
   });
   const more = slots.length < LIMIT
     ? h('button', { type: 'button', class: 'thumb is-add', style: { width: '28px' }, 'aria-label': 'Add a place', title: 'Add a place', onclick: addSlot }, h('span', { class: 'frame' }, '+'), h('i', null, ' '))
@@ -545,22 +636,82 @@ function slotEditor(slot) {
       button('Remove', () => removeSlot(slot), { kind: 'is-quiet' })) : null);
 }
 
-// One picture across the whole row: move it, zoom it, drag the cuts between pieces.
+// The pictures that run across the row, one strip each, cut the way the row is.
+// A lit cell is the picture its place shows; a click on a cell puts that picture there.
+function spreadBlock() {
+  const { slots, arts } = state.post;
+  const { layout } = resolve(contentWidth(state.device));
+  const { widths, seamless, parts } = lie(layout);
+  const row = total(widths);
+  // a strip is a band of the row: never so tall that a few pictures fill the panel, never a hairline
+  const shape = clamp(row / layout.height, 4.2, 7);
+  const picked = selectedSlot() || slots[0];
+  const rows = arts.map((art, a) => {
+    const rects = artRects(art, widths, layout.height, seamless, parts);
+    const cells = slots.map((slot, i) => {
+      const on = artOf(slot) === art;
+      return h('button', {
+        type: 'button', class: `cell ${on ? 'is-on' : ''} ${on && slot === picked ? 'is-picked' : ''}`, style: { flexGrow: String(widths[i]) },
+        'aria-pressed': String(on), 'aria-label': `Picture ${letter(a)} in place ${i + 1}`, title: `Place ${i + 1}`,
+        onclick: () => { slot.from = art.id; state.selected = slot.id; render(); },
+      }, frame(art.pic, rects[i], '', (widths[i] / row) * shape));
+    });
+    const here = artOf(picked) === art;
+    return h('div', { class: 'spread-row' },
+      h('button', {
+        type: 'button', class: `spread-name ${here ? 'is-on' : ''}`, 'aria-pressed': String(here), title: `Show picture ${letter(a)} in place ${slots.indexOf(picked) + 1}`,
+        onclick: () => { picked.from = art.id; state.selected = picked.id; render(); },
+      }, letter(a)),
+      h('div', { class: 'spread-strip', style: { aspectRatio: String(shape) } }, cells));
+  });
+  const many = arts.length > 1;
+  return section('Across the row', `${arts.length} ${many ? 'pictures' : 'picture'}`,
+    h('p', { class: 'note' }, many
+      ? 'Every picture runs across the whole row. Click a cell to choose the picture that place shows.'
+      : 'The picture runs across the whole row. Add more, then choose a picture for each place.'),
+    h('div', { class: 'spread' }, rows),
+    h('div', { class: 'row' },
+      button('Add pictures', () => choose(true, (files) => addArts(files))),
+      many && slots.length > 1 ? button('Take turns', () => arrange('turns'), { title: 'A, B, C, A, B, C along the row' }) : null,
+      many && slots.length > 1 ? button('In runs', () => arrange('blocks'), { title: 'A, A, A, B, B, B along the row' }) : null),
+    h('div', { class: 'row' }, button('Back to separate pictures', endSpread, { kind: 'is-quiet' })));
+}
+
+// The spread picture the picked place shows: move it, zoom it, drag the cuts,
+// and choose the part of it that the place shows.
 function artEditor() {
-  const { art, slots } = state.post;
+  const { slots, arts } = state.post;
+  const slot = selectedSlot() || slots[0];
+  const at = slots.indexOf(slot);
+  const art = artOf(slot);
   const width = contentWidth(state.device);
-  const span = (layout) => total(layout.items.map((item) => item.width)) + (art.seamless && layout.kind === 'row' ? GAP * (slots.length - 1) : 0);
   resolve(width);
-  const box = cropbox({ pic: art.pic, crop: art.crop, height: 300, onChange: renderStage });
+  const mark = h('i', { class: 'part-mark' });
+  // a click on the picture, away from the grips, shows that stretch of it in the picked place
+  const tap = (x) => {
+    const { layout } = resolve(width);
+    const { widths, seamless } = lie(layout);
+    const { total: all, windows } = spread(widths, seamless);
+    let part = 0;
+    windows.forEach((one, i) => { if (one.x <= x * all) part = i; });
+    setPart(slot, part);
+  };
+  const box = cropbox({ pic: art.pic, crop: art.crop, height: 300, onChange: renderStage, over: mark, tap: slots.length > 1 ? tap : null });
   let grips = [];
   const place = () => {
     const { layout } = resolve(width);
-    const gap = art.seamless && layout.kind === 'row' ? GAP : 0;
-    let x = 0;
-    grips.forEach((line, i) => { x += layout.items[i].width + gap; line.style.left = `${((x - gap / 2) / span(layout)) * 100}%`; });
+    const { widths, seamless, parts } = lie(layout);
+    const own = spread(widths, seamless);
+    const shown = spread(widths, seamless, parts).windows[at];
+    grips.forEach((line, i) => {
+      const next = own.windows[i + 1].x;
+      line.style.left = `${((own.windows[i].x + own.windows[i].w + next) / 2 / own.total) * 100}%`;
+    });
+    mark.style.left = `${(shown.x / own.total) * 100}%`;
+    mark.style.width = `${(shown.w / own.total) * 100}%`;
     box.redraw();
   };
-  grips = slots.slice(0, -1).map((slot, i) => {
+  grips = slots.slice(0, -1).map((one, i) => {
     const grip = h('b', { role: 'slider', 'aria-label': `Cut ${i + 1}`, tabindex: 0 });
     const shift = (by) => {
       const a = slotRatio(slots[i]);
@@ -578,7 +729,8 @@ function artEditor() {
       start: () => { done = 0; return true; },
       move: (dx) => {
         const { layout } = resolve(width);
-        const moved = (dx / box.el.getBoundingClientRect().width) * (span(layout) / layout.height);
+        const { widths, seamless } = lie(layout);
+        const moved = (dx / box.el.getBoundingClientRect().width) * (spread(widths, seamless).total / layout.height);
         shift(moved - done);
         done = moved;
       },
@@ -593,16 +745,38 @@ function artEditor() {
   });
   box.el.append(...grips);
   place();
-  return section('One picture across the row', `${art.pic.w} × ${art.pic.h}`,
-    h('p', { class: 'note' }, `This layout shows a ${ratioLabel(art.crop.ratio)} part of the picture. Drag the picture to move it${slots.length > 1 ? ', drag a grip to move a cut' : ''}.`),
+  const part = partOf(slot, at);
+  const now = part == null ? at : part;
+  const step = (by, label) => h('button', {
+    type: 'button', class: 'btn is-square', 'aria-label': label, title: label, disabled: now + by < 0 || now + by >= slots.length, onclick: () => setPart(slot, now + by),
+  }, by < 0 ? '←' : '→');
+  const replace = async (files) => {
+    const [pic] = await readFiles(files);
+    if (!pic) return;
+    art.pic = pic;
+    art.crop = newCrop();
+    render();
+  };
+  const many = slots.length > 1;
+  return section(`Picture ${letter(arts.indexOf(art))}`, `${art.pic.w} × ${art.pic.h}`,
+    h('p', { class: 'note' }, many
+      ? `Place ${at + 1} shows the lit part. Drag the picture to move it, a grip to move a cut. Click another part to show that one here.`
+      : 'Drag the picture to move it.'),
     h('div', { class: 'cropwrap' }, box.el),
     zoomSlider('zoom-art', art.crop, () => { place(); renderStage(); }),
-    slots.length > 1 ? h('label', { class: 'check' },
-      h('input', { id: 'seamless', type: 'checkbox', checked: art.seamless, onchange: (event) => { art.seamless = event.target.checked; render(); } }),
-      h('span', null, 'Carry the picture on behind the gaps')) : null,
+    many ? h('div', { class: 'row is-split' },
+      h('span', { class: 'hint' }, `Place ${at + 1} shows`),
+      h('div', { class: 'stepper' },
+        part != null ? h('button', { type: 'button', class: 'link', onclick: () => setPart(slot, at) }, 'its own') : null,
+        step(-1, 'The part before'), h('b', { id: 'part-now' }, `part ${now + 1}`), step(1, 'The part after'))) : null,
+    many ? h('label', { class: 'check' },
+      h('input', { id: 'seamless', type: 'checkbox', checked: state.post.seamless, onchange: (event) => { state.post.seamless = event.target.checked; render(); } }),
+      h('span', null, 'Carry the pictures on behind the gaps')) : null,
     h('div', { class: 'row' },
-      button('Replace', () => choose(false, setArt)),
-      button('Take it off', () => { state.post.art = null; render(); }, { kind: 'is-quiet' })));
+      many && arts.length > 1 ? button('Use in every place', () => { for (const other of slots) other.from = art.id; render(); }) : null,
+      button('Replace', () => choose(false, replace)),
+      button('Download the piece', () => saveOne(slot))),
+    h('div', { class: 'row' }, button(arts.length > 1 ? 'Remove this picture' : 'Take it off', () => removeArt(art), { kind: 'is-quiet' })));
 }
 
 function savingBlock() {
@@ -614,24 +788,28 @@ function savingBlock() {
     h('div', { class: 'row is-split' }, h('span', { class: 'hint' }, 'Size'), seg('Size of the files', save.size, [['Format size', 'format'], ['As loaded', 'source']], set('size'))),
     h('div', { class: 'row is-split' }, h('span', { class: 'hint' }, 'File'), seg('Kind of file', save.type, [['PNG', 'png'], ['JPG', 'jpg']], set('type'))),
     h('p', { class: 'note' }, save.size === 'format'
-      ? 'A picture with a named format or an own size is saved at exactly that size. Strips and other shapes keep the pixels of the picture.'
+      ? (state.post.arts.length
+        ? 'Each piece keeps the pixels of its picture.'
+        : 'A picture with a named format or an own size is saved at exactly that size. Strips and other shapes keep the pixels of the picture.')
       : 'Every picture keeps its own pixels.',
     ' X takes up to 5 MB a picture; JPG is the lighter one.'));
 }
 
 function postPanel() {
-  const { slots, art } = state.post;
+  const { slots, arts } = state.post;
   const slot = selectedSlot();
+  const loaded = slots.some((one) => one.pic);
   return [
     gallery(),
     section('Pictures', `${slots.length} / ${LIMIT}`,
       tray(),
-      h('div', { class: 'row' },
+      arts.length ? null : h('div', { class: 'row' },
         button('Add pictures', () => choose(true, (files) => addPictures(files))),
-        button('One picture across all', () => choose(false, setArt))),
+        button(loaded ? 'Spread these across all' : 'Spread across all', spreadLoaded,
+          { title: 'Run every picture across the whole row, then choose the picture and the part for each place' })),
       readout()),
-    art ? artEditor() : null,
-    slot && !art ? slotEditor(slot) : null,
+    arts.length ? [spreadBlock(), artEditor()] : null,
+    slot && !arts.length ? slotEditor(slot) : null,
     section('Text', null,
       h('textarea', { id: 'post-text', rows: 3, placeholder: 'What the post says', value: state.post.text, oninput: (event) => { state.post.text = event.target.value; renderStage(); remember(); } })),
     savingBlock(),
@@ -688,9 +866,9 @@ const stamp = (i) => String(i + 1).padStart(2, '0');
 const megabytes = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
 
 function filesToSave() {
-  const { slots, art } = state.post;
-  const { rects } = resolve(contentWidth(state.device));
-  return slots.map((slot, i) => ({ i, pic: art ? art.pic : slot.pic, rect: rects[i], size: art ? null : askedSize(slot) })).filter((one) => one.pic);
+  const { slots, arts } = state.post;
+  const { rects, pics } = resolve(contentWidth(state.device));
+  return slots.map((slot, i) => ({ i, pic: pics[i], rect: rects[i], size: arts.length ? null : askedSize(slot) })).filter((one) => one.pic);
 }
 
 async function render1(one) {
@@ -706,9 +884,10 @@ function weigh(files) {
 }
 
 async function saveOne(slot) {
-  const i = state.post.slots.indexOf(slot);
+  const one = filesToSave().find((file) => file.i === state.post.slots.indexOf(slot));
+  if (!one) return;
   try {
-    const file = await render1({ i, pic: slot.pic, rect: cropRect(slot.pic, slot.crop), size: askedSize(slot) });
+    const file = await render1(one);
     saveBlob(file.blob, file.name);
     const warning = weigh([file]);
     if (warning) toast(warning);
@@ -821,7 +1000,7 @@ function renderBar() {
     opened ? null : seg('Theme', state.theme, [['Dark', 'dark'], ['Light', 'light'], ['Both', 'both']], set('theme')),
     seg('Screen', state.device, [['Computer', 'desktop'], ['Phone', 'phone']], set('device'))]);
   put($('actions'),
-    state.mode === 'post' ? button('Add pictures', () => choose(true, (files) => addPictures(files)), { kind: 'is-ghost', glyph: ICON.add }) : null,
+    state.mode === 'post' ? button('Add pictures', () => choose(true, (files) => addAny(files)), { kind: 'is-ghost', glyph: ICON.add }) : null,
     state.mode === 'post' ? button('Download', saveAll, { kind: 'is-white', glyph: ICON.down }) : null,
     state.mode === 'profile' ? button('Download', saveFaces, { kind: 'is-white', glyph: ICON.down }) : null);
 }
@@ -831,7 +1010,7 @@ function renderBackdrop() {
   const { post, profile } = state;
   const pic = state.mode === 'profile'
     ? (profile.banner || profile.avatar || {}).pic
-    : post.art ? post.art.pic : (post.slots.find((slot) => slot.pic) || {}).pic;
+    : post.arts.length ? post.arts[0].pic : (post.slots.find((slot) => slot.pic) || {}).pic;
   const url = pic ? pic.url : '';
   if (backdrop.dataset.url === url) return;
   backdrop.dataset.url = url;
@@ -877,7 +1056,7 @@ stage.addEventListener('click', (event) => {
   if (!slot) return;
   state.selected = slot.id;
   render();
-  if (!slot.pic && !state.post.art) choose(false, (files) => addPictures(files.slice(0, 1), slot));
+  if (!slot.pic && !state.post.arts.length) choose(false, (files) => addPictures(files.slice(0, 1), slot));
 });
 
 window.addEventListener('keydown', (event) => {
@@ -901,7 +1080,7 @@ window.addEventListener('drop', async (event) => {
   if (state.mode === 'post') {
     // a picture dropped on a place in the preview goes into that place
     const place = state.post.slots.find((slot) => slot.id === Number(event.target.closest?.('[data-item]')?.dataset.item));
-    addPictures(files, files.length === 1 ? place : null);
+    addAny(files, files.length === 1 ? place : null);
     return;
   }
   const key = event.target.closest?.('[data-drop]')?.dataset.drop || event.target.closest?.('[data-face]')?.dataset.face;
@@ -914,7 +1093,7 @@ window.addEventListener('drop', async (event) => {
 
 window.addEventListener('paste', (event) => {
   const files = [...(event.clipboardData?.files || [])];
-  if (files.length && state.mode === 'post') addPictures(files);
+  if (files.length && state.mode === 'post') addAny(files);
 });
 
 window.addEventListener('resize', fitStage);
@@ -927,4 +1106,4 @@ state.selected = state.post.slots[0].id;
 render();
 
 // for checks from the console
-window.PU = { state, resolve, viewFor, render, addPictures, setArt, setCount, applyVariant, fitAll, variants, edit, filesToSave, askedSize };
+window.PU = { state, resolve, viewFor, render, addPictures, addArts, spreadLoaded, endSpread, arrange, setPart, setCount, applyVariant, fitAll, variants, edit, filesToSave, askedSize };

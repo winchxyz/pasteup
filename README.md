@@ -8,7 +8,7 @@ Lay out pictures for X before you post them.
 - **Edit in the preview.** Pull the border between two pictures to make one wider and the other narrower. Carry a picture to a new place with the mouse. Click an empty place to fill it.
 - **Formats.** Give any picture a named shape with the size to make it at (16:9 at 1600 × 900, 4:5 at 1080 × 1350 and so on), or type your own size.
 - **Feed and opened.** See the row as the feed shows it, or one picture as it opens on a tap. Parts the feed cuts off are dimmed in the crop box and outlined in the opened view.
-- **One picture across the row.** Spread a single picture over all the places and drag the cuts. It can carry on behind the 4 px gaps so nothing jumps.
+- **Pictures across the row.** Spread any number of pictures over all the places at once. Each one runs across the whole row; for every place you choose which picture it shows and which part of it, by clicking a cell or a part. Hand them out in turns or in runs with one click, drag the cuts, and let the pictures carry on behind the 4 px gaps so nothing jumps.
 - **Saving.** Pictures download at the exact size of their format, as PNG or JPG, numbered in post order, with a warning when a file is over the 5 MB X takes.
 - **Profile.** Place an avatar and a banner, drag them right in the preview, download them at 400 × 400 and 1500 × 500. The banner editor marks the corner the avatar covers.
 - **Sizes.** One page with the sizes for posts, profile, link cards, and the rules of the feed.

@@ -55,20 +55,29 @@ export function coverRect(rect, aspect) {
   return { x: rect.x, y: rect.y + (rect.h - h) / 2, w: rect.w, h };
 }
 
-// One picture spread over a whole row. widths are the tiles as X draws them, in px;
+// A picture spread over a whole row. widths are the tiles as X draws them, in px;
 // with `seamless` the picture also runs behind the gaps, so nothing jumps between tiles.
-// Sets the crop to the row's shape and returns the part of the picture each tile shows.
-export function artRects(art, widths, height, seamless) {
+// Returns where each tile looks, in row px: its own stretch, or, when parts[i] names
+// another tile, a window of the tile's own width centred on that tile's stretch.
+export function spread(widths, seamless, parts = null) {
   const gap = seamless ? GAP : 0;
   const total = widths.reduce((a, b) => a + b, 0) + gap * (widths.length - 1);
+  const starts = [];
+  let x = 0;
+  for (const width of widths) { starts.push(x); x += width + gap; }
+  const windows = widths.map((width, i) => {
+    const j = parts && parts[i] != null && parts[i] < widths.length ? parts[i] : i;
+    return { x: clamp(starts[j] + widths[j] / 2 - width / 2, 0, total - width), w: width };
+  });
+  return { total, windows };
+}
+
+// Sets the crop of a spread picture to the row's shape and returns the part of it each tile shows.
+export function artRects(art, widths, height, seamless, parts = null) {
+  const { total, windows } = spread(widths, seamless, parts);
   art.crop.ratio = total / height;
   const whole = cropRect(art.pic, art.crop);
-  let x = 0;
-  return widths.map((width) => {
-    const rect = { x: whole.x + (x / total) * whole.w, y: whole.y, w: (width / total) * whole.w, h: whole.h };
-    x += width + gap;
-    return rect;
-  });
+  return windows.map(({ x, w }) => ({ x: whole.x + (x / total) * whole.w, y: whole.y, w: (w / total) * whole.w, h: whole.h }));
 }
 
 // Position an <img> inside a frame so that exactly `rect` of the picture shows.

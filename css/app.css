@@ -87,14 +87,13 @@ button { cursor: pointer; }
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* the app is the whole page: the glass runs edge to edge, with no window frame around it */
 .window {
   position: fixed;
-  inset: 14px;
+  inset: 0;
   display: flex;
   overflow: hidden;
-  border-radius: 22px;
   background: var(--glass);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), 0 40px 90px -30px rgba(0, 0, 0, 0.6);
 }
 
 /* ---------- rail ---------- */
@@ -290,6 +289,26 @@ button { cursor: pointer; }
 .cut b { position: absolute; left: -6px; top: calc(50% - 14px); width: 12px; height: 28px; pointer-events: auto; cursor: ew-resize; touch-action: none; }
 .cut b::before { content: ""; position: absolute; inset: 4px 3px; border-radius: 3px; background: #fff; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.5); }
 .cut b:hover::before, .cut b:focus-visible::before { inset: 2px; }
+/* the stretch of a spread picture that the picked place shows: lit, the rest dimmed */
+.part-mark { position: absolute; top: 0; bottom: 0; pointer-events: none; box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.5), inset 0 0 0 1.5px rgba(255, 255, 255, 0.95); transition: left 0.18s ease, width 0.18s ease; }
+
+/* pictures spread across the row: one strip each, a cell for every place */
+.spread { display: flex; flex-direction: column; gap: 6px; }
+.spread-row { display: flex; align-items: stretch; gap: 8px; }
+.spread-name { flex: none; width: 30px; padding: 0; border: 0; border-radius: 9px; background: var(--tile); color: var(--soft); font: 12px var(--mono); transition: background 0.15s, color 0.15s; }
+.spread-name:hover { background: var(--tile-over); color: var(--ink); }
+.spread-name.is-on { background: #fff; color: #111113; font-weight: 500; }
+.spread-strip { flex: 1; min-width: 0; display: flex; overflow: hidden; border-radius: 9px; background: var(--field); }
+.cell { position: relative; flex: 1 1 0; min-width: 0; padding: 0; border: 0; background: none; }
+.cell + .cell { box-shadow: -1px 0 0 rgba(0, 0, 0, 0.7); }
+.cell .frame { opacity: 0.26; filter: saturate(0.5); transition: opacity 0.15s, filter 0.15s; }
+.cell:hover .frame { opacity: 0.6; }
+.cell.is-on .frame { opacity: 1; filter: none; }
+.cell.is-picked::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px #fff; pointer-events: none; }
+.cell:focus-visible { z-index: 1; outline-offset: -2px; }
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper b { min-width: 56px; text-align: center; font: 500 12px var(--mono); font-variant-numeric: tabular-nums; }
+.btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 
 .toast {
   position: fixed;
@@ -450,7 +469,7 @@ button { cursor: pointer; }
 @media (max-width: 860px) {
   html, body { height: auto; }
   body { overflow: auto; }
-  .window { position: relative; inset: auto; flex-direction: column; min-height: 100vh; border-radius: 0; box-shadow: none; }
+  .window { position: relative; inset: auto; flex-direction: column; min-height: 100vh; }
   .rail { flex-direction: row; width: auto; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--line); }
   .rail-nav { flex-direction: row; margin: 0 0 0 12px; padding: 0 0 0 12px; border-top: 0; border-left: 1px solid var(--line); }
   .rail-foot { margin: 0 0 0 auto; }
