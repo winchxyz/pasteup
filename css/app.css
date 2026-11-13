@@ -115,6 +115,10 @@ button { cursor: pointer; }
 .mark-name { display: none; margin-left: 11px; font: 600 17px "Inter", var(--text); letter-spacing: -0.018em; color: #fff; }
 .rail-nav { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
 .rail-foot { margin-top: auto; }
+/* the way to the code: the GitHub mark with a small star that lights up under the pointer */
+.rail-star { flex: none; margin-top: 8px; text-decoration: none; }
+.rail-star-mark { position: absolute; top: 5px; right: 5px; color: var(--faint); transition: color 0.15s, scale 0.15s; }
+.rail-star:hover .rail-star-mark { color: #ffd66b; scale: 1.15; }
 .rail-btn { position: relative; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 13px; background: none; color: var(--faint); transition: color 0.15s, background 0.15s; }
 .rail-btn:hover { color: var(--ink); background: var(--raise); }
 .rail-btn.is-on { color: #fff; }
@@ -485,6 +489,13 @@ button { cursor: pointer; }
   .window { position: relative; inset: auto; flex-direction: column; min-height: 100vh; }
   .rail { flex-direction: row; width: auto; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--line); }
   .mark-name { display: block; }
+  .rail-star { margin: 0 0 0 6px; }
+}
+/* on a phone the rail has no room for the name */
+@media (max-width: 480px) {
+  .mark-name { display: none; }
+}
+@media (max-width: 860px) {
   .rail-nav { flex-direction: row; margin: 0 0 0 12px; padding: 0 0 0 12px; border-top: 0; border-left: 1px solid var(--line); }
   .rail-foot { margin: 0 0 0 auto; }
   .top { padding: 14px 16px 12px; }
