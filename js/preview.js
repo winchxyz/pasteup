@@ -45,18 +45,24 @@ function face(slot, shape, className) {
 // the shape of a tile inside its 1 px border
 const inside = (width, height) => Math.max(1, width - 2) / Math.max(1, height - 2);
 
+// A picture, or a numbered stand-in while the place is still empty.
+function tile(entry, width, height) {
+  if (entry.pic) return frame(entry.pic, entry.rect, '', inside(width, height));
+  return h('div', { class: 'x-empty' }, h('b', null, String(entry.number)), width > 54 ? h('span', null, entry.label) : null);
+}
+
 function mediaSingle(view) {
   const [item] = view.layout.items;
   const entry = view.media[0];
   return h('div', { class: 'x-single', 'data-item': entry.id, style: { width: `${item.width}px`, height: `${view.layout.height}px` } },
-    frame(entry.pic, entry.rect, '', inside(item.width, view.layout.height)));
+    tile(entry, item.width, view.layout.height));
 }
 
 function mediaRow(view, memo) {
   const { layout, media } = view;
   const row = h('div', { class: 'x-row' }, media.map((entry, i) =>
     h('div', { class: 'x-item', 'data-item': entry.id, style: { width: `${layout.items[i].width}px` } },
-      frame(entry.pic, entry.rect, '', inside(layout.items[i].width, layout.height)))));
+      tile(entry, layout.items[i].width, layout.height))));
   const dots = layout.scrolls ? h('div', { class: 'x-dots', 'aria-hidden': 'true' }, media.map(() => h('i'))) : null;
   const before = h('button', { class: 'x-arrow is-left', type: 'button', 'aria-label': 'Previous pictures' }, icon(ICONS.left, 16));
   const after = h('button', { class: 'x-arrow is-right', type: 'button', 'aria-label': 'Next pictures' }, icon(ICONS.right, 16));
@@ -93,7 +99,7 @@ function zoomOf(el) {
   return el.offsetWidth ? box.width / el.offsetWidth : 1;
 }
 
-// view: { profile, avatar, banner, text, media: [{ id, pic, rect }], layout }
+// view: { profile, avatar, banner, text, media: [{ id, pic, rect, number, label }], layout }
 function post(view, memo) {
   const mounts = [];
   let media = [];
@@ -108,7 +114,7 @@ function post(view, memo) {
     face(view.avatar, view.profile.shape, 'x-face'),
     h('div', { class: 'x-body' },
       h('div', { class: 'x-head' },
-        h('b', null, view.profile.name || 'Name'),
+        h('b', null, view.profile.name || 'Your name'),
         h('span', null, `@${view.profile.handle || 'handle'} · 1h`),
         h('span', { class: 'x-more' }, icon(ICONS.more, 18))),
       view.text ? h('div', { class: 'x-text' }, view.text) : null,
@@ -121,16 +127,17 @@ function post(view, memo) {
 
 function profile(view) {
   const { profile: who } = view;
-  const banner = h('div', { class: 'x-banner', 'data-pan': view.banner ? 'banner' : null });
+  const banner = h('div', { class: 'x-banner', 'data-face': 'banner', 'data-pan': view.banner ? 'banner' : null });
   if (view.banner) banner.append(frame(view.banner.pic, view.banner.rect));
   const avatar = face(view.avatar, who.shape, 'x-pfp');
+  avatar.dataset.face = 'avatar';
   if (view.avatar) avatar.dataset.pan = 'avatar';
   return h('div', { class: 'x-profile' },
-    h('div', { class: 'x-top' }, icon(ICONS.back, 20), h('div', null, h('b', null, who.name || 'Name'), h('small', null, '128 posts'))),
+    h('div', { class: 'x-top' }, icon(ICONS.back, 20), h('div', null, h('b', null, who.name || 'Your name'), h('small', null, '128 posts'))),
     banner,
     h('div', { class: 'x-about' },
       h('div', { class: 'x-about-row' }, avatar, h('span', { class: 'x-pill' }, 'Edit profile')),
-      h('div', { class: 'x-name' }, who.name || 'Name'),
+      h('div', { class: 'x-name' }, who.name || 'Your name'),
       h('div', { class: 'x-handle' }, `@${who.handle || 'handle'}`),
       who.bio ? h('div', { class: 'x-bio' }, who.bio) : null,
       h('div', { class: 'x-meta' }, icon(ICONS.date, 17), 'Joined November 2026'),

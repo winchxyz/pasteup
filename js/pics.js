@@ -1,4 +1,4 @@
-// Pictures, crops and cuts. A crop never copies pixels: it is a rectangle on the
+// Pictures and crops. A crop never copies pixels: it is a rectangle on the
 // source picture, worked out on demand and only rendered when a file is saved.
 
 import { GAP } from './layout.js';
@@ -55,25 +55,21 @@ export function coverRect(rect, aspect) {
   return { x: rect.x, y: rect.y + (rect.h - h) / 2, w: rect.w, h };
 }
 
-export const evenCuts = (pieces) => Array.from({ length: pieces - 1 }, (_, i) => (i + 1) / pieces);
-
-// One piece of a cut picture. cuts are the positions of the cut lines, 0..1 across
-// the crop. gapShare is the part of the crop width one 4 px gap covers in the feed:
-// pieces give that much up at each inner edge, so the picture carries on behind the gaps.
-export function pieceRect(group, index, gapShare = 0) {
-  const whole = cropRect(group.pic, group.crop);
-  const edges = [0, ...group.cuts, 1];
-  const last = edges.length - 2;
-  let from = edges[index] + (index > 0 ? gapShare / 2 : 0);
-  let to = edges[index + 1] - (index < last ? gapShare / 2 : 0);
-  if (to - from < 0.002) { const mid = (edges[index] + edges[index + 1]) / 2; from = mid - 0.001; to = mid + 0.001; }
-  return { x: whole.x + from * whole.w, y: whole.y, w: (to - from) * whole.w, h: whole.h };
+// One picture spread over a whole row. widths are the tiles as X draws them, in px;
+// with `seamless` the picture also runs behind the gaps, so nothing jumps between tiles.
+// Sets the crop to the row's shape and returns the part of the picture each tile shows.
+export function artRects(art, widths, height, seamless) {
+  const gap = seamless ? GAP : 0;
+  const total = widths.reduce((a, b) => a + b, 0) + gap * (widths.length - 1);
+  art.crop.ratio = total / height;
+  const whole = cropRect(art.pic, art.crop);
+  let x = 0;
+  return widths.map((width) => {
+    const rect = { x: whole.x + (x / total) * whole.w, y: whole.y, w: (width / total) * whole.w, h: whole.h };
+    x += width + gap;
+    return rect;
+  });
 }
-
-export const gapShareFor = (group, rowHeight) => {
-  const whole = cropRect(group.pic, group.crop);
-  return GAP / ((whole.w / whole.h) * rowHeight);
-};
 
 // Position an <img> inside a frame so that exactly `rect` of the picture shows.
 export function showRect(img, pic, rect) {

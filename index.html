@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Pasteup</title>
-  <meta name="description" content="Lay out pictures for X before you post: avatar and banner, rows of up to 20 pictures, one picture cut into pieces. Dark and light preview.">
+  <meta name="description" content="Lay out pictures for X before you post: ready layouts for 1 to 20 pictures, one picture cut across a row, avatar and banner, picture sizes. Dark and light preview.">
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/app.css">
@@ -18,9 +18,10 @@
     <div id="modes"></div>
     <div id="switches"></div>
   </header>
-  <main class="desk">
+  <main id="desk" class="desk">
     <aside id="panel" class="panel" aria-label="Controls"></aside>
     <div id="stage" class="stage" aria-label="Preview"></div>
+    <aside id="tools" class="panel is-right" aria-label="Pictures" hidden></aside>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="js/main.js"></script>
