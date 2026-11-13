@@ -81,19 +81,27 @@ export function showRect(img, pic, rect) {
 
 const MAX_SIDE = 4096; // the largest side X keeps
 
-export function rectToBlob(pic, rect, size = null) {
-  let w = size ? size.w : Math.round(rect.w);
-  let h = size ? size.h : Math.round(rect.h);
+// The size a part of a picture is saved at: the asked size, or its own pixels, never over 4096.
+export function savedSize(rect, size = null) {
+  const w = size ? size.w : Math.round(rect.w);
+  const h = size ? size.h : Math.round(rect.h);
   const shrink = Math.min(1, MAX_SIDE / Math.max(w, h));
-  w = Math.max(1, Math.round(w * shrink));
-  h = Math.max(1, Math.round(h * shrink));
+  return { w: Math.max(1, Math.round(w * shrink)), h: Math.max(1, Math.round(h * shrink)) };
+}
+
+// type: 'png' keeps every pixel, 'jpg' is several times lighter (no see-through parts).
+export function rectToBlob(pic, rect, size = null, type = 'png') {
+  const { w, h } = savedSize(rect, size);
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingQuality = 'high';
+  if (type === 'jpg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
   ctx.drawImage(pic.img, rect.x, rect.y, rect.w, rect.h, 0, 0, w, h);
-  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('the picture could not be saved'))), 'image/png'));
+  return new Promise((resolve, reject) => canvas.toBlob(
+    (blob) => (blob ? resolve(blob) : reject(new Error('the picture could not be saved'))),
+    type === 'jpg' ? 'image/jpeg' : 'image/png', 0.92));
 }
 
 export function saveBlob(blob, name) {

@@ -5,24 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Pasteup</title>
   <meta name="description" content="Lay out pictures for X before you post: ready layouts for 1 to 20 pictures, one picture cut across a row, avatar and banner, picture sizes. Dark and light preview.">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#1b1b1d">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <header class="bar">
-    <a class="brand" href="./" aria-label="Pasteup">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 1.500v21M1.500 12h21" stroke="currentColor" stroke-width="1.8"/></svg>
-      <span>Pasteup</span>
-    </a>
-    <div id="modes"></div>
-    <div id="switches"></div>
-  </header>
-  <main id="desk" class="desk">
-    <aside id="panel" class="panel" aria-label="Controls"></aside>
-    <div id="stage" class="stage" aria-label="Preview"></div>
-    <aside id="tools" class="panel is-right" aria-label="Pictures" hidden></aside>
-  </main>
+  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+  <div id="window" class="window">
+    <nav class="rail" aria-label="Sections">
+      <a class="mark" href="./" aria-label="Pasteup">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 1.5v21M1.5 12h21" stroke="currentColor" stroke-width="1.8"/></svg>
+      </a>
+      <div id="modes" class="rail-nav"></div>
+      <div id="rail-foot" class="rail-foot"></div>
+    </nav>
+    <div class="main">
+      <header class="top">
+        <div id="title" class="title"></div>
+        <div id="switches" class="switches"></div>
+        <div id="actions" class="actions"></div>
+      </header>
+      <main id="desk" class="desk">
+        <aside id="panel" class="panel" aria-label="Layouts"></aside>
+        <div id="stage" class="stage" aria-label="Preview"></div>
+        <aside id="tools" class="panel is-right" aria-label="Pictures" hidden></aside>
+      </main>
+    </div>
+  </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="js/main.js"></script>
 </body>
