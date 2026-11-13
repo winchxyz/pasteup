@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pasteup</title>
+  <meta name="description" content="Lay out pictures for X before you post: avatar and banner, rows of up to 20 pictures, one picture cut into pieces. Dark and light preview.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="./" aria-label="Pasteup">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 1.500v21M1.500 12h21" stroke="currentColor" stroke-width="1.8"/></svg>
+      <span>Pasteup</span>
+    </a>
+    <div id="modes"></div>
+    <div id="switches"></div>
+  </header>
+  <main class="desk">
+    <aside id="panel" class="panel" aria-label="Controls"></aside>
+    <div id="stage" class="stage" aria-label="Preview"></div>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
